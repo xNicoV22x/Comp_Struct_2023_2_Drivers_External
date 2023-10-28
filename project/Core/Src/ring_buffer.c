@@ -1,7 +1,9 @@
 
 #include "ring_buffer.h"
 
-
+/**
+ * @brief This function initializes the control struct of the ring buffer
+*/
 void ring_buffer_init(ring_buffer_t *ring_buffer, uint8_t *buffer, uint16_t capacity)
 {
 	ring_buffer->buffer = buffer;
@@ -12,6 +14,10 @@ void ring_buffer_init(ring_buffer_t *ring_buffer, uint8_t *buffer, uint16_t capa
 	ring_buffer->is_full = 0;
 }
 
+/**
+ * @brief This function adds a data in the ring buffer
+ * @param data: the value to be added
+*/
 uint8_t ring_buffer_put(ring_buffer_t *ring_buffer, uint8_t data)
 {
 	ring_buffer->buffer[ring_buffer->head] = data;
@@ -26,6 +32,10 @@ uint8_t ring_buffer_put(ring_buffer_t *ring_buffer, uint8_t data)
 	}
 }
 
+/**
+ * @brief This function reads a data from the ring buffer
+ * @param data: the pointer to the address to write the data
+*/
 uint8_t ring_buffer_get(ring_buffer_t *ring_buffer, uint8_t *data)
 {
 	if ((ring_buffer->is_full != 0) || (ring_buffer->tail != ring_buffer->head)) {
@@ -37,6 +47,9 @@ uint8_t ring_buffer_get(ring_buffer_t *ring_buffer, uint8_t *data)
 	return 0;
 }
 
+/**
+ * @brief This function returns the size of the ring buffer
+*/
 uint16_t ring_buffer_size(ring_buffer_t *ring_buffer)
 {
 	uint16_t size = 0;
