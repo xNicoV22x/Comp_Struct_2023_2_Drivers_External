@@ -29,7 +29,9 @@ uint8_t ring_buffer_put(ring_buffer_t *ring_buffer, uint8_t data)
 
 	if (ring_buffer->head == ring_buffer->tail) {
 		ring_buffer->is_full = 1;
+		return 0;
 	}
+	return 1;
 }
 
 /**

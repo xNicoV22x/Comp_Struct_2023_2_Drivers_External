@@ -74,7 +74,9 @@ int _write(int file, char *ptr, int len)
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	ring_buffer_put(&ring_buffer_uart_rx, rx_data);
+	if (ring_buffer_put(&ring_buffer_uart_rx, rx_data) == 0) {
+		printf("Rx buffer is full\r\n");
+	}
 
 	HAL_UART_Receive_IT(&huart2, &rx_data, 1);
 }
