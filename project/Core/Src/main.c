@@ -130,6 +130,7 @@ uint8_t keypad_handler(uint16_t column_to_evaluate)
 		ROW_2_GPIO_Port->BRR = ROW_2_Pin;  // turn off row 2
 		ROW_3_GPIO_Port->BRR = ROW_3_Pin;  // turn off row 3
 		ROW_4_GPIO_Port->BRR = ROW_4_Pin;  // turn off row 4
+		HAL_Delay(2); // wait for voltage to establish
 		if (COLUMN_1_GPIO_Port->IDR & COLUMN_1_Pin) {
 			key_pressed = 0x01; // if column 1 is still high -> column 1 + row 1 = key 1
 			break;
@@ -137,6 +138,7 @@ uint8_t keypad_handler(uint16_t column_to_evaluate)
 
 		ROW_1_GPIO_Port->BRR = ROW_1_Pin; 	// turn off row 1
 		ROW_2_GPIO_Port->BSRR = ROW_2_Pin; 	// turn on row 2
+		HAL_Delay(2); // wait for voltage to establish
 		if (COLUMN_1_GPIO_Port->IDR & COLUMN_1_Pin) {
 			key_pressed = 0x04; // if column 1 is still high -> column 1 + row 2 = key 4
 			break;
@@ -144,6 +146,7 @@ uint8_t keypad_handler(uint16_t column_to_evaluate)
 
 		ROW_2_GPIO_Port->BRR = ROW_2_Pin; 	// turn off row 2
 		ROW_3_GPIO_Port->BSRR = ROW_3_Pin; 	// turn on row 3
+		HAL_Delay(2); // wait for voltage to establish
 		if (COLUMN_1_GPIO_Port->IDR & COLUMN_1_Pin) {
 			key_pressed = 0x07; // if column 1 is still high -> column 1 + row 3 = key 7
 			break;
@@ -151,6 +154,7 @@ uint8_t keypad_handler(uint16_t column_to_evaluate)
 
 		ROW_3_GPIO_Port->BRR = ROW_3_Pin;	// turn off row 3
 		ROW_4_GPIO_Port->BSRR = ROW_4_Pin; 	// turn on row 4
+		HAL_Delay(2); // wait for voltage to establish
 		if (COLUMN_1_GPIO_Port->IDR & COLUMN_1_Pin) {
 			key_pressed = 0x0E; // if column 1 is still high -> column 1 + row 4 = key *
 			break;
@@ -217,7 +221,9 @@ int main(void)
   {
 	  if (key_event != 0xFF) { // check if there is a event from the EXTi callback
 		  uint16_t key_pressed = keypad_handler(key_event); // call the keypad handler
-		  printf("Key pressed: %x\r\n", key_pressed); // print the key pressed
+		  if (key_pressed != 0xFF) {
+			  printf("Key pressed: %x\r\n", key_pressed); // print the key pressed
+		  }
 		  key_event = 0xFF; // clean the event
 	  }
     /* USER CODE END WHILE */
