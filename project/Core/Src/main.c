@@ -22,11 +22,15 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 
 #include "ring_buffer.h"
 
 #include "ssd1306.h"
 #include "ssd1306_fonts.h"
+
+#include "keypad.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,10 +54,14 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t rx_buffer[16];
 ring_buffer_t ring_buffer_uart_rx;
-
+uint8_t rx_buffer[16];
 uint8_t rx_data;
+
+uint16_t key_event = 0xFF;
+
+ring_buffer_t ring_buffer_keypad;
+uint8_t keypad_buffer[5];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +95,34 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_IT(&huart2, &rx_data, 1);
 }
 
+/**
+  * @brief  EXTI line detection callback.
+  * @param  GPIO_Pin Specifies the port pin connected
+  *         to corresponding EXTI line.
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	key_event = GPIO_Pin;
+}
+
+void validate_sequence(void)
+{
+	printf("Validating\r\n");
+	uint8_t birth_date[5] = "1992#";
+	uint8_t sequence[5];
+	for (uint8_t idx = 0; idx < 5; idx++) {
+	  ring_buffer_get(&ring_buffer_keypad, &sequence[idx]);
+	}
+	if (memcmp(birth_date, sequence, 5) == 0) {
+	  ssd1306_SetCursor(20, 20);
+	  ssd1306_WriteString("Pass", Font_16x26, White);
+	} else {
+	  ssd1306_SetCursor(20, 20);
+	  ssd1306_WriteString("Fail", Font_16x26, White);
+	}
+	ssd1306_UpdateScreen();
+}
 /* USER CODE END 0 */
 
 /**
@@ -121,30 +157,37 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   ring_buffer_init(&ring_buffer_uart_rx, rx_buffer, 16);
+  ring_buffer_init(&ring_buffer_keypad, keypad_buffer, 5);
 
   HAL_UART_Receive_IT(&huart2, &rx_data, 1);
+
 
   ssd1306_Init();
   ssd1306_Fill(Black);
   ssd1306_SetCursor(20, 20);
-  ssd1306_WriteString("Hello World!", Font_7x10, White);
-  ssd1306_UpdateScreen();
+
+  keypad_init(); // Initialize the keypad functionality
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  uint16_t size = ring_buffer_size(&ring_buffer_uart_rx);
-	  if (size != 0) {
-		  uint8_t rx_message[size + 1];
-		  for (uint16_t idx = 0; idx < size; idx++) {
-			  ring_buffer_get(&ring_buffer_uart_rx, &rx_message[idx]);
+	  if (key_event != 0xFF) { // check if there is a event from the EXTi callback
+		  uint8_t key_pressed = keypad_handler(key_event); // call the keypad handler
+		  if (key_pressed != 0xFF) {
+			  printf("Key pressed: %c\r\n", key_pressed); // print the key pressed
+			  ring_buffer_put(&ring_buffer_keypad, key_pressed);
 		  }
-		  rx_message[size] = 0;
-		  printf("Rec: %s\r\n", rx_message);
+
+		  if (key_pressed == '*') {
+			  ring_buffer_reset(&ring_buffer_keypad);
+		  } else if (ring_buffer_is_full(&ring_buffer_keypad) != 0) {
+			  validate_sequence();
+		  }
+		  key_event = 0xFF; // clean the event
 	  }
-	  HAL_Delay(1000); // to wait one second
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -302,7 +345,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin|ROW_1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, ROW_2_Pin|ROW_4_Pin|ROW_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -310,12 +356,44 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : LD2_Pin ROW_1_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin|ROW_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COLUMN_1_Pin */
+  GPIO_InitStruct.Pin = COLUMN_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(COLUMN_1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : COLUMN_4_Pin */
+  GPIO_InitStruct.Pin = COLUMN_4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(COLUMN_4_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : COLUMN_2_Pin COLUMN_3_Pin */
+  GPIO_InitStruct.Pin = COLUMN_2_Pin|COLUMN_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ROW_2_Pin ROW_4_Pin ROW_3_Pin */
+  GPIO_InitStruct.Pin = ROW_2_Pin|ROW_4_Pin|ROW_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
